@@ -10,7 +10,17 @@ from torch import nn
 from torch import optim
 import torch.nn.functional as F
 from collections import namedtuple
+import yaml
 
+with open('cfg.yaml') as f:
+    cfg = yaml.load(f,Loader=yaml.FullLoader)
+
+ENV = cfg['ENV']
+GAMMA = cfg['GAMMA']
+MAX_STEPS = cfg['MAX_STEPS']
+NUM_EPISODES = cfg['NUM_EPISODES']
+CAPACITY = cfg['CAPACITY']
+BATCH_SIZE = cfg['BATCH_SIZE']
 
 def display_frames_as_gif(frames):
     plt.figure(figsize=(frames[0].shape[1] / 72.0, frames[0].shape[0] / 72.0), dpi=72.0)
@@ -25,14 +35,8 @@ def display_frames_as_gif(frames):
     display(display_animation(anim, default_mode='loop'))
 
 
-ENV = 'CartPole-v0'
-GAMMA = 0.99
-MAX_STEPS = 200
-NUM_EPISODES = 500
-CAPACITY = 1000
-BATCH_SIZE = 32
+Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))  # 相当于定义了一个Transition类 一个Q(s,a)网络
 
-Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))  # 相当于定义了一个Transition类
 
 class Agent:
     def __init__(self, num_states, num_actions):
@@ -133,7 +137,7 @@ class ReplayMemory:  # 存储经验
 
 
 class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
-
+    """ model is the model 包含__init__和forward方法"""
     def __init__(self, num_states, num_actions):  # 初始化神经网络
         self.num_actions = num_actions
         self.memory = ReplayMemory(CAPACITY)
@@ -163,30 +167,33 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
 
         self.model.eval()  # 应用模式
         state_action_values = self.model(state_batch).gather(1, action_batch)
-        non_final_mask = torch.ByteTensor(tuple(map(lambda s: s is not None, batch.next_state)))
-        next_state_values = torch.zeros(BATCH_SIZE)  # tensor 数值为0，长度等于batch_size
+        non_final_mask = torch.ByteTensor(tuple(map(lambda s: s is not None, batch.next_state)))  # ByteTensor：0 or 1
+        """返回有下一状态的动作的索引"""
+        next_state_values = torch.zeros(BATCH_SIZE)  # tensor初始化，数值为0，长度等于batch_size
         next_state_values[non_final_mask] = self.model(non_final_next_states).max(1)[0].detach()
 
-        expected_state_action_values = reward_batch + GAMMA * next_state_values
+        expected_state_action_values = reward_batch + GAMMA * next_state_values  # 相当于目标值
         self.model.train()
 
         loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))  # 损失函数
         """
-        state_action_values
+        state_action_values  
         expected_state_action_values:期望的动作  
         """
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+        """反向传播过程，更新参数"""
 
     def decide_action(self, state, episode):
         epsilon = 0.5 * (1 / (episode + 1))
         if epsilon <= np.random.uniform(0, 1):
             self.model.eval()
             with torch.no_grad():
-                action = self.model(state).max(1)[1].view(1, 1)  # 类似reshape?
+                action = self.model(state).max(1)[1].view(1, 1)
+                """深度神经网络模型返回action,选择该状态动作价值最大的action"""
         else:
-            action = torch.LongTensor([[random.randrange(self.num_actions)]])
+            action = torch.LongTensor([[random.randrange(self.num_actions)]])  # 随机动作
 
-            return action
+        return action
