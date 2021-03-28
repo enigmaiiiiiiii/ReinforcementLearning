@@ -133,6 +133,7 @@ class ReplayMemory:  # 存储经验
         """除以capacity的余数，capacity一直大于memory的长度"""
 
     def sample(self, batch_size):
+        """随抽取transitions"""
         return random.sample(self.memory, batch_size)  # 随机抽取memory储存的样本batch_size（批次）个用作训练
 
     def __len__(self):
@@ -140,7 +141,8 @@ class ReplayMemory:  # 存储经验
 
 
 class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
-    """ model is the model 包含__init__和forward方法"""
+    """ model is the model 包含__init__和forward方法
+    神经网络的：input is 状态，output is 动作价值,即Q(s,a)，其中s可以当作当前input的id"""
 
     def __init__(self, num_states, num_actions):  # 初始化神经网络
         self.num_actions = num_actions
@@ -158,7 +160,7 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
 
     def replay(self):
         """在记忆中训练"""
-        if len(self.memory) < BATCH_SIZE:
+        if len(self.memory) < BATCH_SIZE:  # 当记忆size小于batch_size时不进行抽样神经网络训练
             return
         transitions = self.memory.sample(BATCH_SIZE)  # 调用replaymemory类，执行随机抽样返回列表
         batch = Transition(*zip(*transitions))
@@ -176,6 +178,9 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
 
         self.model.eval()  # 应用模式
         state_action_values = self.model(state_batch).gather(1, action_batch)
+        """
+        返回action_batch的对应价值函数，action_batch来自memory，
+        state_batch size = 4，位置，速度，角度，方向"""
         non_final_mask = torch.ByteTensor(tuple(map(lambda s: s is not None, batch.next_state)))  # ByteTensor
         """返回有下一状态的动作的索引"""
         next_state_values = torch.zeros(BATCH_SIZE)  # tensor初始化，数值为0，长度等于batch_size
@@ -192,6 +197,7 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
+        print("loss:"+str(loss.data.numpy()))
         """反向传播过程，更新参数"""
 
     def decide_action(self, state, episode):
