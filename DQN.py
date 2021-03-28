@@ -12,8 +12,8 @@ import torch.nn.functional as F
 from collections import namedtuple
 import yaml
 
-with open('cfg.yaml') as f:
-    cfg = yaml.load(f,Loader=yaml.FullLoader)
+with open('cfg.yaml', encoding="gbk") as f:
+    cfg = yaml.load(f, Loader=yaml.FullLoader)
 
 ENV = cfg['ENV']
 GAMMA = cfg['GAMMA']
@@ -21,6 +21,7 @@ MAX_STEPS = cfg['MAX_STEPS']
 NUM_EPISODES = cfg['NUM_EPISODES']
 CAPACITY = cfg['CAPACITY']
 BATCH_SIZE = cfg['BATCH_SIZE']
+
 
 def display_frames_as_gif(frames):
     plt.figure(figsize=(frames[0].shape[1] / 72.0, frames[0].shape[0] / 72.0), dpi=72.0)
@@ -35,22 +36,22 @@ def display_frames_as_gif(frames):
     display(display_animation(anim, default_mode='loop'))
 
 
-Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))  # Ïàµ±ÓÚ¶¨ÒåÁËÒ»¸öTransitionÀà Ò»¸öQ(s,a)ÍøÂç
+Transition = namedtuple('Transition', ('state', 'action', 'next_state', 'reward'))  # ç›¸å½“äºå®šä¹‰äº†ä¸€ä¸ªTransitionç±» ä¸€ä¸ªQ(s,a)ç½‘ç»œ
 
 
 class Agent:
     def __init__(self, num_states, num_actions):
-        self.brain = Brain(num_states, num_actions)  # ´´½¨BrainÀà£¬BrainÀàÊµÀı»¯
+        self.brain = Brain(num_states, num_actions)  # åˆ›å»ºBrainç±»ï¼ŒBrainç±»å®ä¾‹åŒ–
 
-    def update_Q_function(self, observation, action, reward, observation_next):
+    def update_Q_function(self):
         """
-        Ö´ĞĞupdate_Q_table
+        æ‰§è¡Œupdate_Q_table
         """
         self.brain.replay()
 
     def get_action(self, state, step):
         """
-        Ö´ĞĞaction"""
+        æ‰§è¡Œaction"""
         action = self.brain.decide_action(state, step)
         return action
 
@@ -59,6 +60,7 @@ class Agent:
 
 
 class Environment:
+
     def __init__(self):
         self.env = gym.make(ENV)
         self.num_states = self.env.observation_space.shape[0]
@@ -70,53 +72,54 @@ class Environment:
         complete_episodes = 0
         episode_final = False
         frames = []
-        is_episode_final = False
         for episode in range(NUM_EPISODES):
 
             observation = self.env.reset()
             state = observation
             state = torch.from_numpy(state).type(torch.FloatTensor)
             state = torch.unsqueeze(state, 0)
-            """state¸³Öµ+¸ñÊ½×ª»»"""
+            """stateèµ‹å€¼+æ ¼å¼è½¬æ¢"""
 
             for step in range(MAX_STEPS):
-                if is_episode_final is True:  # Ö´ĞĞ×îºóÒ»´ÎÑ­»·£¬½«×´Ì¬¶¯»­¼ÓÈëframes
+                if episode_final is True:  # æ‰§è¡Œæœ€åä¸€æ¬¡å¾ªç¯ï¼Œå°†çŠ¶æ€åŠ¨ç”»åŠ å…¥frames
                     frames.append(self.env.render(mode='rgb_array'))
 
-                action = self.agent.get_actiosn(observation, episode)  # ¶¯×÷
-                observation_next, _, done, _ = self.env.step(action.item())  # Ö´ĞĞaction£¬²¢·µ»Ø¶¯×÷ºóµÄ×´Ì¬
+                action = self.agent.get_action(state, episode)  # åŠ¨ä½œ
+                observation_next, _, done, _ = self.env.step(action.item())  # æ‰§è¡Œactionï¼Œå¹¶è¿”å›åŠ¨ä½œåçš„çŠ¶æ€
 
                 if done:
-                    step_next = None
+                    state_next = None
                     episode_10_list = np.hstack((episode_10_list[1:], step + 1))
-                    if step < 195:
+                    if step < 195:  # å¦‚æœåŠé€”å€’ä¸‹ï¼Œreward=-1
                         reward = torch.FloatTensor([-1.0])
-                        complete_episodes = 0
+                        complete_episodes = 0  # é‡ç½®è¿ç»­æˆåŠŸè®°å½•
                     else:
-                        reward = torch.FloatTensor([1.0])
+                        reward = torch.FloatTensor([1.0])  # ç«™ç«‹200æ­¥ï¼Œè·å¾—å¥–åŠ± reward = 1
                         complete_episodes += 1
                 else:
-                    reward = torch.FloatStorage([0.0])
+                    reward = torch.FloatTensor([0.0])
+
                     state_next = observation_next
                     state_next = torch.from_numpy(state_next).type(torch.FloatTensor)
                     state_next = torch.unsqueeze(state_next, 0)
+
                 self.agent.memorize(state, action, state_next, reward)
                 self.agent.update_Q_function()
                 state = state_next
                 if done:
-                    print('{0} Episode:Finished after {1} time steps'.format(episode, step + 1))
+                    print('{0} Episode:Finished after {1} times steps'.format(episode, step + 1))
                     break
 
-            if is_episode_final is True:
+            if episode_final is True:
                 display_frames_as_gif(frames)
                 break
 
             if complete_episodes >= 10:
-                print('10»ØºÏÁ¬Ğø³É¹¦')
-                is_episode_final = True
+                print('10å›åˆè¿ç»­æˆåŠŸ')
+                episode_final = True
 
 
-class ReplayMemory:  # ´æ´¢¾­Ñé
+class ReplayMemory:  # å­˜å‚¨ç»éªŒ
     def __init__(self, CAPACITY):
         self.capacity = CAPACITY
         self.memory = []
@@ -124,76 +127,86 @@ class ReplayMemory:  # ´æ´¢¾­Ñé
 
     def push(self, state, action, state_next, reward):
         if len(self.memory) < self.capacity:
-            self.memory.append(None)
+            self.memory.append(None)  # memoryå…ƒç´ +1
         self.memory[self.index] = Transition(state, action, state_next, reward)
         self.index = (self.index + 1) % self.capacity
-        """³ıÒÔcapacityµÄÓàÊı£¬capacityÒ»µµ´óÓÚmemoryµÄ³¤¶È"""
+        """é™¤ä»¥capacityçš„ä½™æ•°ï¼Œcapacityä¸€ç›´å¤§äºmemoryçš„é•¿åº¦"""
 
     def sample(self, batch_size):
-        return random.sample(self.memory, batch_size)  # Ëæ»ú³éÈ¡memorys´¢´æµÄÑù±¾batch_size¸ö
+        return random.sample(self.memory, batch_size)  # éšæœºæŠ½å–memoryå‚¨å­˜çš„æ ·æœ¬batch_sizeï¼ˆæ‰¹æ¬¡ï¼‰ä¸ªç”¨ä½œè®­ç»ƒ
 
     def __len__(self):
         return len(self.memory)
 
 
-class Brain:  # ¸ù¾İ¾­Ñé£¬×ö³ö¾ö²ß£¬ÔÚBrainÌåÖĞ´î½¨Éñ¾­ÍøÂç
-    """ model is the model °üº¬__init__ºÍforward·½·¨"""
-    def __init__(self, num_states, num_actions):  # ³õÊ¼»¯Éñ¾­ÍøÂç
+class Brain:  # æ ¹æ®ç»éªŒï¼Œåšå‡ºå†³ç­–ï¼Œåœ¨Brainä½“ä¸­æ­å»ºç¥ç»ç½‘ç»œ
+    """ model is the model åŒ…å«__init__å’Œforwardæ–¹æ³•"""
+
+    def __init__(self, num_states, num_actions):  # åˆå§‹åŒ–ç¥ç»ç½‘ç»œ
         self.num_actions = num_actions
         self.memory = ReplayMemory(CAPACITY)
         self.model = nn.Sequential()
-        self.model.add_module('fc1', nn.Linear(num_states, 32))  # ÊäÈënum_state£¬Êä³öÎª32µÄÈ«Á¬½Ó²ã
-        self.model.add_module('relu1', nn.ReLU())  # ¼¤»îº¯Êırelu
-        self.model.add_module('fc2', nn.Linear(32, 32))  # 32£¬32µÄÈ«Á¬½Ó²ã
+        self.model.add_module('fc1', nn.Linear(num_states, 32))  # è¾“å…¥num_stateï¼Œè¾“å‡ºä¸º32çš„å…¨è¿æ¥å±‚
+        self.model.add_module('relu1', nn.ReLU())  # æ¿€æ´»å‡½æ•°relu
+        self.model.add_module('fc2', nn.Linear(32, 32))  # 32ï¼Œ32çš„å…¨è¿æ¥å±‚
         self.model.add_module('relu2', nn.ReLU())
         self.model.add_module('fc3', nn.Linear(32, num_actions))
 
         print(self.model)
 
-        self.optimizer = optim.Adam(self.model.parameters(), lr=0.0001)  # ÓÅ»¯modelµÄ²ÎÊı
+        self.optimizer = optim.Adam(self.model.parameters(), lr=0.0001)  # ä¼˜åŒ–modelçš„å‚æ•°
 
     def replay(self):
-
+        """åœ¨è®°å¿†ä¸­è®­ç»ƒ"""
         if len(self.memory) < BATCH_SIZE:
             return
-        transitions = self.memory.sample(BATCH_SIZE)  # µ÷ÓÃreplaymemoryÀà£¬Ö´ĞĞËæ»ú³éÑù·µ»ØÁĞ±í
+        transitions = self.memory.sample(BATCH_SIZE)  # è°ƒç”¨replaymemoryç±»ï¼Œæ‰§è¡ŒéšæœºæŠ½æ ·è¿”å›åˆ—è¡¨
         batch = Transition(*zip(*transitions))
+        """
+        zipå‡½æ•°å°†å¯¹åº”å…ƒç´ æ‰“åŒ…æˆå…ƒç»„
+        *listå°†åˆ—è¡¨ä¸­çš„å‚æ•°é€ä¸ªä¼ å…¥
+        Iteratorï¼ˆè¿­ä»£å™¨ï¼‰å€ŸåŠ©å†…ç½®å‡½æ•°next()(__next__)è¿”å›å®¹å™¨çš„ä¸‹ä¸€ä¸ªå…ƒç´ ã€‚
+        """
 
-        state_batch = torch.cat(batch.state)  # ±äÎªtorchÕÅÁ¿£¬size = (batch_size,1)
+        state_batch = torch.cat(batch.state)  # batch.stateç±»å‹ä¸ºtupleï¼Œtorch.catå‡½æ•°å‚æ•°ä¸ºtupleï¼Œå³tupleå˜
         action_batch = torch.cat(batch.action)  #
         reward_batch = torch.cat(batch.reward)
-        non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])  # s+1×´Ì¬ÕÅÁ¿£¬´óĞ¡Î´Öª
-        """next_state×ª»»ÎªÕÅÁ¿"""
+        non_final_next_states = torch.cat([s for s in batch.next_state if s is not None])  # s+1çŠ¶æ€å¼ é‡ï¼Œå¤§å°æœªçŸ¥
+        """next_stateè½¬æ¢ä¸ºå¼ é‡"""
 
-        self.model.eval()  # Ó¦ÓÃÄ£Ê½
+        self.model.eval()  # åº”ç”¨æ¨¡å¼
         state_action_values = self.model(state_batch).gather(1, action_batch)
-        non_final_mask = torch.ByteTensor(tuple(map(lambda s: s is not None, batch.next_state)))  # ByteTensor£º0 or 1
-        """·µ»ØÓĞÏÂÒ»×´Ì¬µÄ¶¯×÷µÄË÷Òı"""
-        next_state_values = torch.zeros(BATCH_SIZE)  # tensor³õÊ¼»¯£¬ÊıÖµÎª0£¬³¤¶ÈµÈÓÚbatch_size
+        non_final_mask = torch.ByteTensor(tuple(map(lambda s: s is not None, batch.next_state)))  # ByteTensor
+        """è¿”å›æœ‰ä¸‹ä¸€çŠ¶æ€çš„åŠ¨ä½œçš„ç´¢å¼•"""
+        next_state_values = torch.zeros(BATCH_SIZE)  # tensoråˆå§‹åŒ–ï¼Œæ•°å€¼ä¸º0ï¼Œé•¿åº¦ç­‰äºbatch_size
         next_state_values[non_final_mask] = self.model(non_final_next_states).max(1)[0].detach()
+        expected_state_action_values = reward_batch + GAMMA * next_state_values  # ç›¸å½“äºç›®æ ‡å€¼tensor
 
-        expected_state_action_values = reward_batch + GAMMA * next_state_values  # Ïàµ±ÓÚÄ¿±êÖµ
         self.model.train()
-
-        loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))  # ËğÊ§º¯Êı
+        loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))  # æŸå¤±å‡½æ•°
         """
-        state_action_values  
-        expected_state_action_values:ÆÚÍûµÄ¶¯×÷  
+        state_action_values
+        expected_state_action_values:æœŸæœ›çš„åŠ¨ä½œ
         """
 
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
-        """·´Ïò´«²¥¹ı³Ì£¬¸üĞÂ²ÎÊı"""
+        """åå‘ä¼ æ’­è¿‡ç¨‹ï¼Œæ›´æ–°å‚æ•°"""
 
     def decide_action(self, state, episode):
+        """æ¥å—å½“å‰çŠ¶æ€å’Œå›åˆæ•°ä½œä¸ºå‚æ•°"""
         epsilon = 0.5 * (1 / (episode + 1))
         if epsilon <= np.random.uniform(0, 1):
             self.model.eval()
             with torch.no_grad():
                 action = self.model(state).max(1)[1].view(1, 1)
-                """Éî¶ÈÉñ¾­ÍøÂçÄ£ĞÍ·µ»Øaction,Ñ¡Ôñ¸Ã×´Ì¬¶¯×÷¼ÛÖµ×î´óµÄaction"""
+                """æ·±åº¦ç¥ç»ç½‘ç»œæ¨¡å‹è¿”å›action,é€‰æ‹©è¯¥çŠ¶æ€åŠ¨ä½œä»·å€¼æœ€å¤§çš„action"""
         else:
-            action = torch.LongTensor([[random.randrange(self.num_actions)]])  # Ëæ»ú¶¯×÷
+            action = torch.LongTensor([[random.randrange(self.num_actions)]])  # éšæœºåŠ¨ä½œ
 
         return action
+
+
+cartpole_env = Environment()
+cartpole_env.run()
