@@ -10,6 +10,7 @@ from torch import nn
 from torch import optim
 import torch.nn.functional as F
 from collections import namedtuple
+from torch.utils.tensorboard import SummaryWriter
 import yaml
 
 with open('cfg.yaml', encoding="gbk") as f:
@@ -78,6 +79,7 @@ class Environment:
             state = observation
             state = torch.from_numpy(state).type(torch.FloatTensor)
             state = torch.unsqueeze(state, 0)
+            steps = 0
             """state赋值+格式转换"""
 
             for step in range(MAX_STEPS):
@@ -107,9 +109,13 @@ class Environment:
                 self.agent.update_Q_function()
                 state = state_next
                 if done:
-                    print('{0} Episode:Finished after {1} times steps'.format(episode, step + 1))
+                    steps = step + 1
+                    print('{0} Episode:Finished after {1} times steps'.format(episode, steps))
                     break
 
+            writer.add_scalar("episodeloss", self.agent.brain.loss, episode)
+            writer.add_histogram("steploss", self.agent.brain.loss, steps)
+            # writer.add_scalar("loss", self.agent.brain.loss, episode)
             if episode_final is True:
                 display_frames_as_gif(frames)
                 break
@@ -151,8 +157,7 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         self.model.add_module('fc2', nn.Linear(32, 32))  # 32，32的全连接层
         self.model.add_module('relu2', nn.ReLU())
         self.model.add_module('fc3', nn.Linear(32, num_actions))
-
-        print(self.model)
+        self.loss = 0
 
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.0001)  # 优化model的参数
 
@@ -179,18 +184,19 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         non_final_mask = torch.ByteTensor(tuple(map(lambda s: s is not None, batch.next_state)))  # ByteTensor
         """返回有下一状态的动作的索引"""
         next_state_values = torch.zeros(BATCH_SIZE)  # tensor初始化，数值为0，长度等于batch_size
-        next_state_values[non_final_mask] = self.model(non_final_next_states).max(1)[0].detach()
+        next_state_values[non_final_mask] = self.model(non_final_next_states).max(1)[0].detach()  # max函数返回一个ma
+        # x对象，max(1)的indices返回dim=1的index
         expected_state_action_values = reward_batch + GAMMA * next_state_values  # 相当于目标值tensor
 
         self.model.train()
-        loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))  # 损失函数
+        self.loss = F.smooth_l1_loss(state_action_values, expected_state_action_values.unsqueeze(1))  # 损失函数
         """
         state_action_values
         expected_state_action_values:期望的动作
         """
 
         self.optimizer.zero_grad()
-        loss.backward()
+        self.loss.backward()
         self.optimizer.step()
         """反向传播过程，更新参数"""
 
@@ -208,5 +214,6 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         return action
 
 
+writer = SummaryWriter("./logs")
 cartpole_env = Environment()
 cartpole_env.run()
