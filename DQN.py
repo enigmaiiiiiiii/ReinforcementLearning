@@ -114,7 +114,7 @@ class Environment:
                     break
 
             writer.add_scalar("episodeloss", self.agent.brain.loss, episode)
-            writer.add_histogram("steploss", self.agent.brain.loss, steps)
+            writer.add("steploss", self.agent.brain.loss, steps)
             # writer.add_scalar("loss", self.agent.brain.loss, episode)
             if episode_final is True:
                 display_frames_as_gif(frames)
