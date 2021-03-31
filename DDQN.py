@@ -85,7 +85,7 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         n_in, n_mid, n_out = num_states, 32, num_actions
         """中间层为32的全连接层，输入层维度=state size，输出层维度=action size"""
         self.main_q_network = Net(n_in, n_mid, n_out)
-        self.target_q_network = Net(n_in, n_mid, n_out)
+        self.target_q_network = Net(n_in, n_mid, n_out)  # 深度学习网络
         self.loss = 0
 
         self.optimizer = optim.Adam(self.main_q_network.parameters(), lr=0.0001)  # 优化model的参数
@@ -93,41 +93,40 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
     def replay(self):
         """在记忆中训练"""
 
-        # 1. メモリサイズの確認
+        # 确认存储器大小
         if len(self.memory) < BATCH_SIZE:
             return
 
-        # 2. ミニバッチの作成
+        # 小批量的制作
         self.batch, self.state_batch, self.action_batch, self.reward_batch, self.non_final_next_states = self.make_minibatch()
 
-        # 3. 教師信号となるQ(s_t, a_t)値を求める
+        # 求期望的Q(s_t, a_t)值
         self.expected_state_action_values = self.get_expected_state_action_values()
 
-        # 4. 結合パラメータの更新
+        # 耦合参数的更新
         self.update_main_q_network()
 
-    """反向传播过程，更新参数"""
-
     def decide_action(self, state, episode):
-        """接受当前状态和回合数作为参数"""
+
         epsilon = 0.5 * (1 / (episode + 1))
+
         if epsilon <= np.random.uniform(0, 1):
-            self.model.eval()
+            self.main_q_network.eval()
             with torch.no_grad():
-                action = self.model(state).max(1)[1].view(1, 1)
-                """深度神经网络模型返回action,选择该状态动作价值最大的action"""
+                action = self.main_q_network(state).max(1)[1].view(1, 1)
+                """从main_q_network中返回动作"""
         else:
-            action = torch.LongTensor([[random.randrange(self.num_actions)]])  # 随机动作
+
+            action = torch.LongTensor(
+                [[random.randrange(self.num_actions)]])
 
         return action
 
     def make_minibatch(self):
 
-
         transitions = self.memory.sample(BATCH_SIZE)
 
         batch = Transition(*zip(*transitions))
-
 
         state_batch = torch.cat(batch.state)
         action_batch = torch.cat(batch.action)
@@ -138,9 +137,7 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         return batch, state_batch, action_batch, reward_batch, non_final_next_states
 
     def get_expected_state_action_values(self):
-        '''教師信号となるQ(s_t, a_t)値を求める'''
 
-        # 3.1 ネットワークを推論モードに切り替える
         self.main_q_network.eval()
         self.target_q_network.eval()
         """
@@ -158,7 +155,7 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         54/5000 创建索引掩码，检查cartpole是否为done，是否存在next_state。
         """
         non_final_mask = torch.ByteTensor(tuple(map(lambda s: s is not None,
-                                                    self.batch.next_state)))
+                                                    self.batch.next_state)))  # map(function,*iterables)
 
         # 首先全部都是0
         next_state_values = torch.zeros(BATCH_SIZE)
@@ -187,14 +184,10 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         return expected_state_action_values
 
     def update_main_q_network(self):
-        '''4. 結合パラメータの更新'''
-
         self.main_q_network.train()
-
         loss = F.smooth_l1_loss(self.state_action_values,
                                 self.expected_state_action_values.unsqueeze(1))
 
-        # 4.3 結合パラメータを更新する
         self.optimizer.zero_grad()  # 重置梯度
         loss.backward()
         self.optimizer.step()
@@ -283,7 +276,6 @@ class Environment:
                     break
 
             writer.add_scalar("episodeloss", self.agent.brain.loss, episode)
-            writer.add_histogram("steploss", self.agent.brain.loss, steps)
             # writer.add_scalar("loss", self.agent.brain.loss, episode)
             if episode_final is True:
                 display_frames_as_gif(frames)
