@@ -154,31 +154,21 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         max{Q(s_t+1, a)}求值。但是要注意是否有以下状态。
         54/5000 创建索引掩码，检查cartpole是否为done，是否存在next_state。
         """
-        non_final_mask = torch.ByteTensor(tuple(map(lambda s: s is not None,
+        non_final_mask = torch.ByteTensor(tuple(map(lambda s: s is not None,  #掩码由[0,1,.......]组成
                                                     self.batch.next_state)))  # map(function,*iterables)
-
-        # 首先全部都是0
         next_state_values = torch.zeros(BATCH_SIZE)
-
         a_m = torch.zeros(BATCH_SIZE).type(torch.LongTensor)
-
-        # 从Main Q- network中求出下一状态下最大Q值的行动a_m
-        # 最后的[1]返回对应于行为的index
         a_m[non_final_mask] = self.main_q_network(
-            self.non_final_next_states).detach().max(1)[1]
-
-        # 只过滤有以下状态的物体，size 32变为32×1
-        a_m_non_final_next_states = a_m[non_final_mask].view(-1, 1)
+            self.non_final_next_states).detach().max(1)[1]  # max()返回一个max对象，dim0 = value，dim1 = indices
+        a_m_non_final_next_states = a_m[non_final_mask].view(-1, 1)  # unsqueeze行不行？
         """
-        从target Q- network中获取具有下一状态的index的行为a_m的Q值
+        从target Q-network中获取具有下一状态的index的行为a_m的Q值
         detach()取出
         squeeze()将size[minibatch×1]变成[minibatch]。
         """
-
         next_state_values[non_final_mask] = self.target_q_network(
             self.non_final_next_states).gather(1, a_m_non_final_next_states).detach().squeeze()
 
-        # Q(s_t, a_t)值由Q学习式求出
         expected_state_action_values = self.reward_batch + GAMMA * next_state_values
 
         return expected_state_action_values

@@ -184,8 +184,9 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         non_final_mask = torch.ByteTensor(tuple(map(lambda s: s is not None, batch.next_state)))  # ByteTensor
         """返回有下一状态的动作的索引"""
         next_state_values = torch.zeros(BATCH_SIZE)  # tensor初始化，数值为0，长度等于batch_size
-        next_state_values[non_final_mask] = self.model(non_final_next_states).max(1)[0].detach()  # max函数返回一个ma
-        # x对象，max(1)的indices返回dim=1的index
+        next_state_values[non_final_mask] = self.model(non_final_next_states).max(1)[0].detach()  # max函数返回一个
+        """ max对象，max(1)的indices返回dim=1的index
+         DDQN.py中有max函数用法，返回indices"""
         expected_state_action_values = reward_batch + GAMMA * next_state_values  # 相当于目标值tensor
 
         self.model.train()
