@@ -59,7 +59,7 @@ class Net(nn.Module):
 class ReplayMemory:  # 存储经验
     def __init__(self, CAPACITY):
         self.capacity = CAPACITY
-        self.memory = []
+        self.memory = []  # memory is a list
         self.index = 0
 
     def push(self, state, action, state_next, reward):
@@ -149,7 +149,6 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         """
         self.state_action_values = self.main_q_network(
             self.state_batch).gather(1, self.action_batch)
-
         """
         max{Q(s_t+1, a)}求值。但是要注意是否有以下状态。
         54/5000 创建索引掩码，检查cartpole是否为done，是否存在next_state。
@@ -161,11 +160,7 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         a_m[non_final_mask] = self.main_q_network(
             self.non_final_next_states).detach().max(1)[1]  # max()返回一个max对象，dim0 = value，dim1 = indices
         a_m_non_final_next_states = a_m[non_final_mask].view(-1, 1)  # unsqueeze行不行？
-        """
-        从target Q-network中获取具有下一状态的index的行为a_m的Q值
-        detach()取出
-        squeeze()将size[minibatch×1]变成[minibatch]。
-        """
+        """main_q_network的价值最大next_state"""
         next_state_values[non_final_mask] = self.target_q_network(
             self.non_final_next_states).gather(1, a_m_non_final_next_states).detach().squeeze()
 
@@ -183,7 +178,7 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         self.optimizer.step()
 
     def update_target_q_network(self):  # DDQN新增方法
-
+        """通过load_state_dict复制main_q_network模型参数"""
         self.target_q_network.load_state_dict(self.main_q_network.state_dict())
 
 

@@ -204,7 +204,6 @@ class Brain:  # 根据经验，做出决策，在Brain体中搭建神经网络
         self.optimizer.zero_grad()
         self.loss.backward()
         self.optimizer.step()
-        print("loss:"+str(loss.data.numpy()))
         """反向传播过程，更新参数"""
 
     def decide_action(self, state, episode):
